@@ -17,8 +17,8 @@ extern String dynamic_pass;
 extern int dynamic_gmt_offset; 
 
 // НАСТРОЙКИ ПОДКЛЮЧЕНИЯ И СЕТИ (По умолчанию)
-#define DEFAULT_SSID          "VDD"
-#define DEFAULT_PASSWORD      "__3732201__"
+#define DEFAULT_SSID          "YourWiFiSSID"
+#define DEFAULT_PASSWORD      "YourWiFiPassword"
 #define DEFAULT_GMT_OFFSET    3
 #define NTP_SERVER            "pool.ntp.org"
 #define DAYLIGHT_OFFSET_SEC   0     
