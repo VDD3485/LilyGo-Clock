@@ -5,63 +5,49 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
-#include "time.h"
 #include <GxEPD2_BW.h>
 #include <U8g2_for_Adafruit_GFX.h>
 
-#define BUTTON_BOOT_PIN   39  
+// ПОДКЛЮЧЕНИЕ НАВИНЫХ ШРИФТОВ ADAFRUIT GFX
+#include <Fonts/FreeSansBold42pt7b.h> // ИСПРАВЛЕНО: Новый гигантский сглаженный шрифт для часов
+#include <Fonts/ofont_ru_Vremena_Medium_Italic10pt7b.h>       // Стандартный шрифт для даты и статус-бара
 
-// Динамические настройки из Preferences Flash
+#define FONT_CLOCK   &FreeSansBold42pt7b
+#define FONT_TEXT    &ofont_ru_Vremena_Medium_Italic10pt7b
+
+// Распиновка LilyGo T5 2.13" Board
+#define EPD_CS          5
+#define EPD_DC          17
+#define EPD_RST         16
+#define EPD_BUSY        4
+#define BAT_ADC_PIN     35
+#define BOARD_LED       19
+#define BUTTON_BOOT_PIN 39
+
+// Настройки по умолчанию
+#define DEFAULT_SSID        "YOUR_WIFI_SSID"
+#define DEFAULT_PASSWORD    "YOUR_WIFI_PASSWORD"
+#define DEFAULT_GMT_OFFSET  3 // +3 (Москва)
+#define DAYLIGHT_OFFSET_SEC 0
+#define NTP_SERVER          "pool.ntp.org"
+#define TEXT_WIFI_STATUS    "WiFi"
+
+// Глобальные переменные (флаги и объекты управления)
+extern bool isWifiConnected;
+extern bool needFullRefresh;
+extern bool isConfigMode;
 extern String dynamic_ssid;
 extern String dynamic_pass;
-extern int dynamic_gmt_offset; 
-
-// НАСТРОЙКИ ПОДКЛЮЧЕНИЯ И СЕТИ (По умолчанию)
-#define DEFAULT_SSID          "YourWiFiSSID"
-#define DEFAULT_PASSWORD      "YourWiFiPassword"
-#define DEFAULT_GMT_OFFSET    3
-#define NTP_SERVER            "pool.ntp.org"
-#define DAYLIGHT_OFFSET_SEC   0     
-#define AP_SSID               "Clock_Config"
-
-// Буфер для автоматического имени точки доступа "Clock_xxxx" (ИСПРАВЛЕНО: тип данных изменен на массив)
-extern char generated_ap_ssid[32]; 
-
-// НАСТРОЙКИ ШРИФТОВ U8g2
-#define FONT_CLOCK            u8g2_font_logisoso62_tn 
-#define FONT_DATE             u8g2_font_unifont_t_cyrillic 
-#define FONT_BATTERY          u8g2_font_unifont_t_cyrillic 
-#define FONT_WIFI             u8g2_font_unifont_t_cyrillic 
-
-// ТЕКСТОВЫЕ СТРОКИ
-#define TEXT_WIFI_STATUS      "WiFi"
-extern const char* days[];
-extern const char* months[];
-
-// АППАРАТНАЯ РАСПИНОВКА ПЛАТЫ LILYGO T5
-#define BOARD_LED     19
-#define BAT_ADC_PIN   35  
-#define EPD_CS        5
-#define EPD_DC        17
-#define EPD_RST       16
-#define EPD_BUSY      4
-
-// Глобальные переменные (внешние ссылки)
-extern unsigned long lastSyncTime;
-extern const unsigned long syncInterval;
-extern bool isWifiConnected;               
-extern bool needFullRefresh;                
-extern bool isConfigMode; 
+extern int dynamic_gmt_offset;
+extern char generated_ap_ssid[32];
 
 extern GxEPD2_BW<GxEPD2_213_B74, GxEPD2_213_B74::HEIGHT> display;
-extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
-extern WebServer server; 
+extern WebServer server;
 
-// Объявления функций
-int getBatteryPercentage();
+// Прототипы функций внешних модулей
 void updateClockDisplay();
 void syncTimeNTP();
-void initWebServer(); 
-void handleWebServer(); 
+void initWebServer();
+void handleWebServer();
 
 #endif

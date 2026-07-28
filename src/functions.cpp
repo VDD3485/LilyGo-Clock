@@ -1,7 +1,9 @@
 #include "settings.h"
 
-const char* days[] = {"ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"};
-const char* months[] = {"ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК"};
+extern bool rtcIsCalibrated;
+
+const char* days[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+const char* months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
 
 int getBatteryPercentage() {
   uint32_t raw_adc = 0;
@@ -14,59 +16,100 @@ int getBatteryPercentage() {
   return percent;
 }
 
+void drawBatteryIcon(int x, int y, int width, int height, int percentage) {
+  display.drawRect(x, y, width, height, GxEPD_BLACK);
+  
+  int protrusionHeight = height / 3;
+  int protrusionY = y + (height - protrusionHeight) / 2;
+  display.fillRect(x + width, protrusionY, 2, protrusionHeight, GxEPD_BLACK);
+  
+  int maxFillWidth = width - 4;
+  int fillWidth = (maxFillWidth * percentage) / 100;
+  
+  if (fillWidth > 0) {
+    display.fillRect(x + 2, y + 2, fillWidth, height - 4, GxEPD_BLACK);
+  }
+}
+
 void updateClockDisplay() {
-  display.setPartialWindow(0, 0, display.width(), display.height());
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Ошибка получения времени для дисплея");
+    return;
+  }
+
+  int currentBatteryPercent = getBatteryPercentage();
+
+  char timeString[16];
+  char dateString[64]; 
+  char batString[16]; 
+
+  snprintf(timeString, sizeof(timeString), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  snprintf(dateString, sizeof(dateString), "%s, %d %s %d", days[timeinfo.tm_wday], timeinfo.tm_mday, months[timeinfo.tm_mon], timeinfo.tm_year + 1900);
+  snprintf(batString, sizeof(batString), "%d%%", currentBatteryPercent);
+
+  if (needFullRefresh) {
+    display.setFullWindow();
+    needFullRefresh = false;
+  } else {
+    display.setPartialWindow(0, 0, display.width(), display.height());
+  }
 
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);       
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK); 
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
     
     if (isConfigMode) {
-      u8g2Fonts.setFont(FONT_DATE);
-      u8g2Fonts.setCursor(10, 25);  u8g2Fonts.print("РЕЖИМ НАСТРОЙКИ Wi-Fi");
-      u8g2Fonts.setCursor(10, 50);  u8g2Fonts.print("Подключитесь к сети:");
-      u8g2Fonts.setCursor(10, 70);  u8g2Fonts.print(generated_ap_ssid); 
-      u8g2Fonts.setCursor(10, 105); u8g2Fonts.print("Перейдите на: 192.168.111.1");
-    } else {
-      struct tm timeinfo;
-      if (!getLocalTime(&timeinfo)) continue;
-
-      char timeString[16];
-      char dateString[64]; 
-      char batString[16];
+      display.setFont(NULL); 
+      display.setTextSize(2);
+      display.setCursor(10, 15); display.print("WIFI CONFIG MODE");
+      display.setTextSize(1);
+      display.setCursor(10, 50); display.print("Connect to AP: ");
+      display.setCursor(10, 65); display.print(generated_ap_ssid);
+      display.setCursor(10, 95); display.print("URL: 192.168.111.1");
+    } 
+    // ЭКРАН СТАРТОВОЙ КАЛИБРОВКИ
+    else if (!rtcIsCalibrated) {
+      display.setFont(FONT_TEXT);
       
-      sprintf(timeString, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-      sprintf(dateString, "%s, %d %s %d", days[timeinfo.tm_wday], timeinfo.tm_mday, months[timeinfo.tm_mon], timeinfo.tm_year + 1900);
-      sprintf(batString, "%d%%", getBatteryPercentage());
-
-      // Правая граница для выравнивания текста (с отступом от края 250)
+      // ИСПРАВЛЕНО: Масштаб уменьшен до 1. Шрифт стал тонким и гладким
+      display.setTextSize(1);
+      
+      // Отрисовка двух ровных и аккуратных сервисных строк по центру экрана
+      display.setCursor(15, 50);  display.print("Calibrating RTC...");
+      display.setCursor(15, 80);  display.print("Please wait 60 seconds");
+    } 
+    // ОБЫЧНЫЙ РЕЖИМ РАБОТЫ ЧАСОВ
+    else {
       int16_t rightEdgeX = 244; 
 
-      // 1. Уровень заряда батареи (Шрифт cu12, аккуратный и ровный)
-      u8g2Fonts.setFont(FONT_BATTERY); 
-      int16_t batWidth = u8g2Fonts.getUTF8Width(batString);
-      u8g2Fonts.setCursor(rightEdgeX - batWidth, 20); 
-      u8g2Fonts.print(batString);
+      drawBatteryIcon(rightEdgeX - 24, 6, 20, 11, currentBatteryPercent);
       
-      // 2. Надпись WiFi выравнивается по правой линии под батареей
+      display.setFont(NULL); 
+      display.setTextSize(1);
+      
+      int16_t batTextWidth = strlen(batString) * 6;
+      int16_t batTextX = (rightEdgeX - 24) + (20 / 2) - (batTextWidth / 2) + 1; 
+      
+      display.setCursor(batTextX, 6 + 11 + 4); 
+      display.print(batString);
+      
       if (isWifiConnected) {
-        u8g2Fonts.setFont(FONT_WIFI);
-        int16_t wifiWidth = u8g2Fonts.getUTF8Width(TEXT_WIFI_STATUS);
-        u8g2Fonts.setCursor(rightEdgeX - wifiWidth, 40); 
-        u8g2Fonts.print(TEXT_WIFI_STATUS);
+        display.setFont(FONT_TEXT);
+        display.setCursor(10, 20); 
+        display.print("WiFi");
       }
 
-      // 3. ОГРОМНЫЕ ЧАСЫ (выравнивание по левому краю X=10)
-      u8g2Fonts.setFont(FONT_CLOCK); 
-      u8g2Fonts.setCursor(10, 72); 
-      u8g2Fonts.print(timeString);
+      display.setFont(FONT_CLOCK); 
+      display.setTextSize(1);   
+      display.setCursor(4, 84); 
+      display.print(timeString);
       
-      // 4. ИСПРАВЛЕНО: Отрисовка ОГРОМНОЙ ДАТЫ (Чистый вывод без искусственного сдвига пикселей)
-      u8g2Fonts.setFont(FONT_DATE); 
-      u8g2Fonts.setCursor(10, 118); // Опущено до упора вниз, чтобы текст стоял идеально
-      u8g2Fonts.print(dateString);
+      display.setFont(FONT_TEXT);
+      display.setTextSize(1); 
+      display.setCursor(10, 110); 
+      display.print(dateString);
     }
     
   } while (display.nextPage());
@@ -76,9 +119,7 @@ void updateClockDisplay() {
 
 void syncTimeNTP() {
   Serial.println("Starting NTP Sync...");
-  isWifiConnected = true;
-  updateClockDisplay();
-  delay(500); 
+  isWifiConnected = false; 
 
   WiFi.begin(dynamic_ssid.c_str(), dynamic_pass.c_str());
   
@@ -87,30 +128,20 @@ void syncTimeNTP() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nConnected! Syncing time...");
+    isWifiConnected = true; 
     
     long calculated_gmt_sec = (long)dynamic_gmt_offset * 3600L;
     configTime(calculated_gmt_sec, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
     
     struct tm timeinfo;
     for (int i = 0; i < 10; i++) {
-      if (getLocalTime(&timeinfo)) { Serial.println("Time synchronized successfully!"); break; }
+      if (getLocalTime(&timeinfo)) { 
+        Serial.println("Time synchronized successfully!"); 
+        break; 
+      }
       delay(500);
     }
-    
-    isWifiConnected = true; 
-    updateClockDisplay();
-    delay(4000); 
-    
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    isConfigMode = false;
   } else {
-    Serial.println("\nWi-Fi не найден. Запуск веб-настроек...");
-    WiFi.disconnect();
-    initWebServer(); 
-    isConfigMode = true;
+    Serial.println("\nНе удалось подключиться к роутеру.");
   }
-
-  isWifiConnected = false;
-  updateClockDisplay();
 }
